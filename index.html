@@ -8,6 +8,8 @@
     .box{max-width:600px;margin:auto;background:#fff;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.1);}
     button{background:#4caf50;color:#fff;padding:12px 24px;border:none;border-radius:6px;font-size:1.1rem;cursor:pointer;}
     .result{margin-top:20px;line-height:1.6;}
+    .loading{font-style:italic;color:#555;}
+    .error{color:red;}
   </style>
 </head>
 <body>
@@ -18,30 +20,60 @@
   </div>
 
   <script>
-    // <-- غيّر هذا الرابط إلى رابط الـ API الخاص بك
-    const API_URL = "https://web-production-4e79a.up.railway.app/api/weather";
+    // الرابط الجديد!
+    const API_URL = "https://web-production-b2f0.up.railway.app/api/weather";
 
     document.getElementById("getBtn").onclick = async () => {
       const out = document.getElementById("output");
-      out.innerHTML = "<p>جاري التحميل...</p>";
-      try{
-        const res = await fetch(API_URL, {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({days:7})
-        });
-        const data = await res.json();
-        if(data.error){
-          out.innerHTML = `<p style="color:red;">خطأ: ${data.error}</p>`;
+      out.innerHTML = '<p class="loading">جاري التحميل... (قد يستغرق 10-30 ثانية أول مرة)</p>';
+
+      let retries = 3;
+      let attempt = 1;
+
+      while (retries > 0) {
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({days: 7})
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+
+          const data = await res.json();
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          // نجح!
+          let html = `<h3>المدينة: ${data.city} (IP: ${data.user_ip})</h3><div class="result">`;
+          data.results.forEach(r => {
+            html += `<p><strong>${r.date}</strong>: ${r.temp}°C — ${r.outfit}</p>`;
+          });
+          html += `</div>`;
+          out.innerHTML = html;
           return;
+
+        } catch (e) {
+          retries--;
+          if (retries > 0) {
+            out.innerHTML = `<p class="loading">محاولة ${attempt + 1} من 3... (${e.message})</p>`;
+            attempt++;
+            await new Promise(r => setTimeout(r, 5000));
+          } else {
+            out.innerHTML = `
+              <p class="error">فشل الاتصال بعد 3 محاولات:</p>
+              <p><strong>${e.message}</strong></p>
+              <ul>
+                <li>تأكد من الإنترنت</li>
+                <li>جرب بعد دقيقة (الخادم قد يكون نائمًا)</li>
+                <li>افتح <a href="${API_URL}" target="_blank">الـ API</a> في تبويب جديد</li>
+              </ul>`;
+          }
         }
-        let html = `<h3>المدينة: ${data.city}</h3>`;
-        data.results.forEach(r=>{
-          html += `<p><strong>${r.date}</strong>: ${r.temp}°C — ${r.outfit}</p>`;
-        });
-        out.innerHTML = html;
-      }catch(e){
-        out.innerHTML = "<p style='color:red;'>فشل الاتصال بالخادم</p>";
       }
     };
   </script>
